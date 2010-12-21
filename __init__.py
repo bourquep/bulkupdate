@@ -203,20 +203,18 @@ class BulkUpdater(object):
 
   def _run(self, _start_cursor=None):
     """Begins or continues a batch update process."""
-    status = self._status
-    
-    if not status:
+    if not self._status:
       logging.error("Job entity not found.")
       return
 
-    state_override_key = 'job_state:%s' % str(status.key())
+    state_override_key = 'job_state:%s' % str(self._status.key())
     state_override = memcache.get(state_override_key, namespace='__bulkupdate')
-    if state_override and status.state != state_override:
-      status.state = state_override
-      status.put()
+    if state_override and self._status.state != state_override:
+      self._status.state = state_override
+      self._status.put()
       memcache.delete(state_override_key, namespace='__bulkupdate')
 
-    if not status.is_running:
+    if not self._status.is_running:
       logging.warn("Terminating cancelled job.")
       return
 
@@ -243,12 +241,12 @@ class BulkUpdater(object):
     if finished:
       logging.info(
           "Processed %d entities in %d tasks, putting %d and deleting %d",
-          status.num_processed, status.num_tasks, status.num_put,
-          status.num_deleted)
-      self.finish(status.state == model.Status.STATE_COMPLETED,
-                  status)
+          self._status.num_processed, self._status.num_tasks, self._status.num_put,
+          self._status.num_deleted)
+      self.finish(self._status.state == model.Status.STATE_COMPLETED,
+                  self._status)
       if self.DELETE_COMPLETED_JOB_DELAY != -1:
-        if (status.state == model.Status.STATE_COMPLETED
+        if (self._status.state == model.Status.STATE_COMPLETED
             or self.DELETE_FAILED_JOBS):
           self._status.delete(_countdown=self.DELETE_COMPLETED_JOB_DELAY)
     else:
@@ -258,9 +256,9 @@ class BulkUpdater(object):
       self.current_key = None
       self._defer_run(q.cursor())
 
-    status.num_tasks += 1
-    status.last_update = datetime.datetime.now()
-    log_entries.append(status)
+    self._status.num_tasks += 1
+    self._status.last_update = datetime.datetime.now()
+    log_entries.append(self._status)
     db.put(log_entries)
 
   def start(self):
